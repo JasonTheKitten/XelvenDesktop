@@ -12,14 +12,49 @@ local handlePrototype = {
   VISUAL_CLASS_PSEUDO_COLOR = 3,
   VISUAL_CLASS_TRUE_COLOR = 4,
   VISUAL_CLASS_DIRECT_COLOR = 5,
+
+  VISUAL_COPY_FROM_PARENT = 0,
+
+  WINDOW_CLASS_COPY_FROM_PARENT = 0,
+  WINDOW_CLASS_INPUT_OUTPUT = 1,
+  WINDOW_CLASS_INPUT_ONLY = 2,
 };
 
 function handlePrototype:close()
   self._socket:close();
 end
 
+function handlePrototype:createWindow(settings)
+  self:_sendCard8(1);
+  self:_sendCard8(settings.depth);
+  self:_sendCard16(8); -- TODO: Support value list
+  self:_sendCard32(settings.windowId);
+  self:_sendCard32(settings.parentId);
+  self:_sendInt16(settings.x);
+  self:_sendInt16(settings.y);
+  self:_sendCard16(settings.width);
+  self:_sendCard16(settings.height);
+  self:_sendCard16(settings.borderWidth);
+  self:_sendCard16(settings.windowClass);
+  self:_sendCard32(settings.visualId);
+  self:_sendCard32(settings.valueMask);
+  self:_flush();
+end
+
+function handlePrototype:mapWindow(windowId)
+  self:_sendCard8(8);
+  self:_sendCard8(1);
+  self:_sendCard16(2);
+  self:_sendCard32(windowId);
+  self:_flush();
+end
+
 function handlePrototype:_pad(n)
   return (4 - (n % 4)) % 4;
+end
+
+function handlePrototype:_flush()
+  self._socket:flush();
 end
 
 function handlePrototype:_sendCard8(value)
@@ -38,12 +73,17 @@ function handlePrototype:_sendCard32(value)
   self:_sendCard8(value & 0xFF);
 end
 
+function handlePrototype:_sendInt16(value)
+  self:_sendCard8(value >> 8);
+  self:_sendCard8(value & 0xFF);
+end
+
 function handlePrototype:_sendString8(value)
   self._socket:write(value);
 end
 
 function handlePrototype:_sendNone(times)
-  for i = 0, times or 0 do
+  for i = 1, times or 1 do
     self._socket:write(0);
   end
 end
@@ -142,7 +182,8 @@ end
 
 function handlePrototype:_parseServerInfo()
   local serverInfo = {
-    pixmapFormats = {}
+    pixmapFormats = {},
+    roots = {}
   };
   self:_skipRead();
   serverInfo.protocolMajorVersion = self:_readCard16();
@@ -164,13 +205,12 @@ function handlePrototype:_parseServerInfo()
   serverInfo.maxKeycode = self:_readCard8();
   self:_skipRead(4);
   serverInfo.vendor = self:_readString8(serverInfo.vendorLength);
-  print(serverInfo.vendor);
   self:_skipRead(self:_pad(serverInfo.vendorLength));
   for _ = 1, serverInfo.numPixmapFormats do
     table.insert(serverInfo.pixmapFormats, self:_parseFormat());
   end
   for _ = 1, serverInfo.numRoots do
-    self:_readScreen();
+    table.insert(serverInfo.roots, self:_readScreen());
   end
 
   return serverInfo;
@@ -186,8 +226,6 @@ function handlePrototype:_connectionSetup()
   self:_sendCard16(0);
   self:_sendNone();
   self:_sendNone();
-  self:_sendNone(self:_pad(0));
-  self:_sendNone(self:_pad(0));
   
   local success = self:_readCard8();
   if success == 2 then
@@ -224,12 +262,6 @@ xelven.wrap = function(socket)
   
   return handle;
 end
-
-local handle, err = xelven.connect("127.0.0.1", 0);
-if not handle then
-  error(err);
-end
-handle:close();
 
 xelven.X_MAJOR_VERSION = X_MAJOR_VERSION;
 xelven.X_MINOR_VERSION = X_MINOR_VERSION;

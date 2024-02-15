@@ -18,6 +18,8 @@ local handlePrototype = {
   WINDOW_CLASS_COPY_FROM_PARENT = 0,
   WINDOW_CLASS_INPUT_OUTPUT = 1,
   WINDOW_CLASS_INPUT_ONLY = 2,
+
+  ATTRIB_MASK_BACKGROUND_PIXEL = 0x00000002,
 };
 
 function handlePrototype:close()
@@ -27,7 +29,7 @@ end
 function handlePrototype:createWindow(settings)
   self:_sendCard8(1);
   self:_sendCard8(settings.depth);
-  self:_sendCard16(8); -- TODO: Support value list
+  self:_sendCard16(8 + self:_getNumAttribs(settings.attributes));
   self:_sendCard32(settings.windowId);
   self:_sendCard32(settings.parentId);
   self:_sendInt16(settings.x);
@@ -38,6 +40,17 @@ function handlePrototype:createWindow(settings)
   self:_sendCard16(settings.windowClass);
   self:_sendCard32(settings.visualId);
   self:_sendCard32(settings.valueMask);
+  self:_sendAttribList(settings.attributes);
+  self:_flush();
+end
+
+function handlePrototype:changeWindowAttributes(settings)
+  self:_sendCard8(2);
+  self:_sendNone();
+  self:_sendCard16(3 + self:_getNumAttribs(settings.attributes));
+  self:_sendCard32(settings.windowId);
+  self:_sendCard32(settings.valueMask);
+  self:_sendAttribList(settings.attributes);
   self:_flush();
 end
 
@@ -47,6 +60,71 @@ function handlePrototype:mapWindow(windowId)
   self:_sendCard16(2);
   self:_sendCard32(windowId);
   self:_flush();
+end
+
+function handlePrototype:unmapWindow(windowId)
+  self:_sendCard8(10);
+  self:_sendCard8(1);
+  self:_sendCard16(2);
+  self:_sendCard32(windowId);
+  self:_flush();
+end
+
+function handlePrototype:getGeometry(windowId)
+  self:_sendCard8(14);
+  self:_sendNone();
+  self:_sendCard16(2);
+  self:_sendCard32(windowId);
+
+  local reply = self:_readCard8();
+  if reply == 0 then
+    return nil, "An unknown error occurred";
+  end
+
+  local depth = self:_readCard8();
+  self:_skipRead(6);
+  local root = self:_readCard32();
+  local x = self:_readInt16();
+  local y = self:_readInt16();
+  local width = self:_readCard16();
+  local height = self:_readCard16();
+  local borderWidth = self:_readCard16();
+  self:_skipRead(10);
+
+  return {
+    depth = depth,
+    root = root,
+    x = x,
+    y = y,
+    width = width,
+    height = height,
+    borderWidth = borderWidth
+  };
+end
+
+function handlePrototype:clearArea(settings)
+  self:_sendCard8(61);
+  self:_sendBool(settings.exposures);
+  self:_sendCard16(4);
+  self:_sendCard32(settings.windowId);
+  self:_sendInt16(settings.x);
+  self:_sendInt16(settings.y);
+  self:_sendCard16(settings.width);
+  self:_sendCard16(settings.height);
+end
+
+function handlePrototype:_getNumAttribs(attribs)
+  local numAttribs = 0;
+  if attribs.backgroundPixel then
+    numAttribs = numAttribs + 1;
+  end
+  return numAttribs;
+end
+
+function handlePrototype:_sendAttribList(attribs)
+  if attribs.backgroundPixel then
+    self:_sendCard32(attribs.backgroundPixel);
+  end
 end
 
 function handlePrototype:_pad(n)
@@ -82,6 +160,10 @@ function handlePrototype:_sendString8(value)
   self._socket:write(value);
 end
 
+function handlePrototype:_sendBool(value)
+  self:_sendCard8(value and 1 or 0);
+end
+
 function handlePrototype:_sendNone(times)
   for i = 1, times or 1 do
     self._socket:write(0);
@@ -99,6 +181,14 @@ end
 
 function handlePrototype:_readCard32()
   return (self:_readCard16() << 16) + self:_readCard16();
+end
+
+function handlePrototype:_readInt16()
+  local value = self:_readCard16();
+  if value > 0x7FFF then
+    value = value - 0x10000;
+  end
+  return value;
 end
 
 function handlePrototype:_readString8(n)

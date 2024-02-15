@@ -9,6 +9,35 @@ function xwindowHandlePrototype:setVisible(visible)
     end
 end
 
+function xwindowHandlePrototype:mergeAttributes(attributes)
+    local attributeMask = 0;
+    local formattedAttributes = {};
+    if attributes.backgroundColor then
+        attributeMask = attributeMask | self._handle.ATTRIB_MASK_BACKGROUND_PIXEL;
+        formattedAttributes.backgroundPixel = attributes.backgroundColor;
+    end
+
+    self._handle:changeWindowAttributes({
+        windowId = self._windowId,
+        valueMask = attributeMask,
+        attributes = formattedAttributes
+    });
+end
+
+function xwindowHandlePrototype:getBounds()
+    local geometry, err = self._handle:getGeometry(self._windowId);
+    if not geometry then return self:_error(err); end
+
+    return {
+        position = { geometry.x, geometry.y },
+        size = { geometry.width, geometry.height }
+    };
+end
+
+function xwindowHandlePrototype:createGraphics(graphicsFactory)
+    return graphicsFactory(self._windowId, self._handle);
+end
+
 local xwindibPrototype = {};
 
 function xwindibPrototype:close()
@@ -28,10 +57,12 @@ function xwindibPrototype:openWindow(options)
     local windowId = self._nextId;
     self._nextId = self._nextId + 1;
 
-    local settings = {
+    local screen = self._handle.serverInfo.roots[screenNumber];
+
+    self._handle:createWindow({
         depth = 24,
         windowId = windowId,
-        parentId = self._handle.serverInfo.roots[screenNumber].root,
+        parentId = screen.root,
         width = size[1],
         height = size[2],
         x = position[1],
@@ -39,13 +70,16 @@ function xwindibPrototype:openWindow(options)
         borderWidth = 1,
         windowClass = self._handle.WINDOW_CLASS_INPUT_OUTPUT,
         visualId = visual.visualId,
-        valueMask = 0
-    };
+        valueMask = self._handle.ATTRIB_MASK_BACKGROUND_PIXEL,
+        attributes = {
+            backgroundPixel = screen.blackPixel
+        }
+    });
 
-    self._handle:createWindow(settings);
     local window = {
         _handle = self._handle,
-        _windowId = windowId
+        _windowId = windowId,
+        _error = self._error
     };
 
     for k, v in pairs(xwindowHandlePrototype) do

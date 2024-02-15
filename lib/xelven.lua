@@ -20,6 +20,9 @@ local handlePrototype = {
   WINDOW_CLASS_INPUT_ONLY = 2,
 
   ATTRIB_MASK_BACKGROUND_PIXEL = 0x00000002,
+
+  STYLE_MASK_FOREGROUND = 0x00000004,
+  STYLE_MASK_BACKGROUND = 0x00000008
 };
 
 function handlePrototype:close()
@@ -75,6 +78,7 @@ function handlePrototype:getGeometry(windowId)
   self:_sendNone();
   self:_sendCard16(2);
   self:_sendCard32(windowId);
+  self:_flush();
 
   local reply = self:_readCard8();
   if reply == 0 then
@@ -102,6 +106,45 @@ function handlePrototype:getGeometry(windowId)
   };
 end
 
+function handlePrototype:createGC(settings)
+  self:_sendCard8(55);
+  self:_sendNone();
+  self:_sendCard16(4 + self:_getNumStyles(settings.styles));
+  self:_sendCard32(settings.graphicsContextId);
+  self:_sendCard32(settings.windowId);
+  self:_sendCard32(settings.valueMask);
+  self:_sendStyleList(settings.styles);
+  self:_flush();
+end
+
+function handlePrototype:changeGC(settings)
+  self:_sendCard8(56);
+  self:_sendNone();
+  self:_sendCard16(3 + self:_getNumStyles(settings.styles));
+  self:_sendCard32(settings.graphicsContextId);
+  self:_sendCard32(settings.valueMask);
+  self:_sendStyleList(settings.styles);
+  self:_flush();
+end
+
+function handlePrototype:copyGC(settings)
+  self:_sendCard8(57);
+  self:_sendNone();
+  self:_sendCard16(4);
+  self:_sendCard32(settings.srcGraphicsContextId);
+  self:_sendCard32(settings.dstGraphicsContextId);
+  self:_sendCard32(settings.valueMask);
+  self:_flush();
+end
+
+function handlePrototype:freeGC(graphicsContextId)
+  self:_sendCard8(60);
+  self:_sendNone();
+  self:_sendCard16(2);
+  self:_sendCard32(graphicsContextId);
+  self:_flush();
+end
+
 function handlePrototype:clearArea(settings)
   self:_sendCard8(61);
   self:_sendBool(settings.exposures);
@@ -111,7 +154,21 @@ function handlePrototype:clearArea(settings)
   self:_sendInt16(settings.y);
   self:_sendCard16(settings.width);
   self:_sendCard16(settings.height);
+  self:_flush();
 end
+
+function handlePrototype:polyFillRectangle(settings)
+  self:_sendCard8(70);
+  self:_sendNone();
+  self:_sendCard16(3 + #settings.rectangles * 2);
+  self:_sendCard32(settings.windowId);
+  self:_sendCard32(settings.graphicsContextId);
+  for _, rect in ipairs(settings.rectangles) do
+    self:_sendRectangle(rect);
+  end
+  self:_flush();
+end
+
 
 function handlePrototype:_getNumAttribs(attribs)
   local numAttribs = 0;
@@ -125,6 +182,33 @@ function handlePrototype:_sendAttribList(attribs)
   if attribs.backgroundPixel then
     self:_sendCard32(attribs.backgroundPixel);
   end
+end
+
+function handlePrototype:_getNumStyles(styles)
+  local numStyles = 0;
+  if styles.foreground then
+    numStyles = numStyles + 1;
+  end
+  if styles.background then
+    numStyles = numStyles + 1;
+  end
+  return numStyles;
+end
+
+function handlePrototype:_sendStyleList(styles)
+  if styles.foreground then
+    self:_sendCard32(styles.foreground);
+  end
+  if styles.background then
+    self:_sendCard32(styles.background);
+  end
+end
+
+function handlePrototype:_sendRectangle(rectangle)
+  self:_sendInt16(rectangle[1]);
+  self:_sendInt16(rectangle[2]);
+  self:_sendCard16(rectangle[3]);
+  self:_sendCard16(rectangle[4]);
 end
 
 function handlePrototype:_pad(n)

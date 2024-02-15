@@ -1,5 +1,43 @@
 local xelven = require("xelven");
 
+local allocatorPrototype = {};
+
+function allocatorPrototype:allocateId()
+    if #self._availableIds > 0 then
+        local id = table.remove(self._availableIds);
+        table.insert(self._allocatedIds, id);
+        return id;
+    end
+
+    table.insert(self._allocatedIds, self._nextId);
+    self._nextId = self._nextId + 1;
+    return self._nextId - 1;
+end
+
+function allocatorPrototype:freeId(id)
+    for k, v in pairs(self._allocatedIds) do
+        if v == id then
+            table.remove(self._allocatedIds, k);
+            table.insert(self._availableIds, id);
+            return;
+        end
+    end
+end
+
+local function createAllocator(startId)
+    local allocator = {
+        _nextId = startId or 1,
+        _allocatedIds = {},
+        _availableIds = {}
+    };
+
+    for k, v in pairs(allocatorPrototype) do
+        allocator[k] = v;
+    end
+
+    return allocator;
+end
+
 local xwindowHandlePrototype = {};
 function xwindowHandlePrototype:setVisible(visible)
     if visible then
@@ -35,7 +73,8 @@ function xwindowHandlePrototype:getBounds()
 end
 
 function xwindowHandlePrototype:createGraphics(graphicsFactory)
-    return graphicsFactory(self._windowId, self._handle);
+    return graphicsFactory(
+        self._windowId, self._handle, self._xwindib._resourceAllocator, self._error);
 end
 
 local xwindibPrototype = {};
@@ -54,9 +93,7 @@ function xwindibPrototype:openWindow(options)
     local visual, err = self:_findVisual(screenNumber, 24, self._handle.VISUAL_CLASS_TRUE_COLOR);
     if not visual then return self:_error(err) end
 
-    local windowId = self._nextId;
-    self._nextId = self._nextId + 1;
-
+    local windowId = self._resourceAllocator:allocateId();
     local screen = self._handle.serverInfo.roots[screenNumber];
 
     self._handle:createWindow({
@@ -78,6 +115,7 @@ function xwindibPrototype:openWindow(options)
 
     local window = {
         _handle = self._handle,
+        _xwindib = self,
         _windowId = windowId,
         _error = self._error
     };
@@ -116,9 +154,10 @@ local function createXwindib(host, display, throws)
         return nil, err;
     end
 
+    local baseId = handle.serverInfo.resourceIdBase;
     local xwindib = {
         _handle = handle,
-        _nextId = handle.serverInfo.resourceIdBase
+        _resourceAllocator = createAllocator(baseId),
     };
 
     for k, v in pairs(xwindibPrototype) do

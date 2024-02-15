@@ -114,7 +114,7 @@ function handlePrototype:createGC(settings)
   self:_sendCard32(settings.windowId);
   self:_sendCard32(settings.valueMask);
   self:_sendStyleList(settings.styles);
-  self:_flush();
+  --self:_flush();
 end
 
 function handlePrototype:changeGC(settings)
@@ -124,7 +124,7 @@ function handlePrototype:changeGC(settings)
   self:_sendCard32(settings.graphicsContextId);
   self:_sendCard32(settings.valueMask);
   self:_sendStyleList(settings.styles);
-  self:_flush();
+  --self:_flush();
 end
 
 function handlePrototype:copyGC(settings)
@@ -134,7 +134,7 @@ function handlePrototype:copyGC(settings)
   self:_sendCard32(settings.srcGraphicsContextId);
   self:_sendCard32(settings.dstGraphicsContextId);
   self:_sendCard32(settings.valueMask);
-  self:_flush();
+  --self:_flush();
 end
 
 function handlePrototype:freeGC(graphicsContextId)
@@ -142,7 +142,7 @@ function handlePrototype:freeGC(graphicsContextId)
   self:_sendNone();
   self:_sendCard16(2);
   self:_sendCard32(graphicsContextId);
-  self:_flush();
+  --self:_flush();
 end
 
 function handlePrototype:clearArea(settings)
@@ -154,7 +154,7 @@ function handlePrototype:clearArea(settings)
   self:_sendInt16(settings.y);
   self:_sendCard16(settings.width);
   self:_sendCard16(settings.height);
-  self:_flush();
+  --self:_flush();
 end
 
 function handlePrototype:polyFillRectangle(settings)
@@ -166,7 +166,7 @@ function handlePrototype:polyFillRectangle(settings)
   for _, rect in ipairs(settings.rectangles) do
     self:_sendRectangle(rect);
   end
-  self:_flush();
+  --self:_flush();
 end
 
 

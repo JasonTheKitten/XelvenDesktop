@@ -47,6 +47,10 @@ function graphixContextPrototype:startFrame()
     end
 end
 
+function graphixContextPrototype:endFrame()
+    self._handle:_flush();
+end
+
 function graphixContextPrototype:createPaint(styles)
     local paintId = self._resourceAllocator:allocateId();
 

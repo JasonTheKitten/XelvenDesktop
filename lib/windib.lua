@@ -145,15 +145,7 @@ function xwindibPrototype:_error(err)
     return nil, err
 end
 
-local function createXwindib(host, display, throws)
-    local handle, err = xelven.connect(host, display);
-    if not handle then
-        if throws then
-            error(err);
-        end
-        return nil, err;
-    end
-
+local function wrapXwindib(handle, throws)
     local baseId = handle.serverInfo.resourceIdBase;
     local xwindib = {
         _handle = handle,
@@ -167,6 +159,18 @@ local function createXwindib(host, display, throws)
     if throws then xwindib._error = function(_, e) error(e) end end
 
     return xwindib;
+end
+
+local function createXwindib(host, display, throws)
+    local handle, err = xelven.connect(host, display);
+    if not handle then
+        if throws then
+            error(err);
+        end
+        return nil, err;
+    end
+
+    return wrapXwindib(handle, throws);
 end
 
 local function parseDisplay(display, throws)
@@ -186,6 +190,7 @@ end
 
 return {
     createXwindib = createXwindib,
+    wrapXwindib = wrapXwindib,
     parseDisplay = parseDisplay
 };
 

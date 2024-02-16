@@ -41,13 +41,13 @@ end
 
 local graphixContextPrototype = {};
 
-function graphixContextPrototype:startFrame()
+function graphixContextPrototype:clean()
     while #self._paints > 0 do
         self._paints[1]:close();
     end
 end
 
-function graphixContextPrototype:endFrame()
+function graphixContextPrototype:flush()
     self._handle:_flush();
 end
 
@@ -95,6 +95,20 @@ function graphixContextPrototype:fillRect(paint, x, y, width, height)
         rectangles = {
             { x, y, width, height }
         }
+    });
+end
+
+function graphixContextPrototype:copyRect(paint, x1, y1, x2, y2, width, height)
+    self._handle:copyArea({
+        srcWindowId = self._windowId,
+        dstWindowId = self._windowId,
+        graphicsContextId = paint._gc,
+        srcX = x1,
+        srcY = y1,
+        dstX = x2,
+        dstY = y2,
+        width = width,
+        height = height
     });
 end
 

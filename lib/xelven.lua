@@ -165,6 +165,21 @@ function handlePrototype:clearArea(settings)
   --self:_flush();
 end
 
+function handlePrototype:copyArea(settings)
+  self:_sendCard8(62);
+  self:_sendNone();
+  self:_sendCard16(7);
+  self:_sendCard32(settings.srcWindowId);
+  self:_sendCard32(settings.dstWindowId);
+  self:_sendCard32(settings.graphicsContextId);
+  self:_sendInt16(settings.srcX);
+  self:_sendInt16(settings.srcY);
+  self:_sendInt16(settings.dstX);
+  self:_sendInt16(settings.dstY);
+  self:_sendCard16(settings.width);
+  self:_sendCard16(settings.height);
+end
+
 function handlePrototype:polyFillRectangle(settings)
   self:_sendCard8(70);
   self:_sendNone();

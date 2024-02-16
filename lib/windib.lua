@@ -39,6 +39,11 @@ local function createAllocator(startId)
 end
 
 local xwindowHandlePrototype = {};
+function xwindowHandlePrototype:close()
+    self._handle:destroyWindow(self._windowId);
+    self._xwindib._resourceAllocator:freeId(self._windowId);
+end
+
 function xwindowHandlePrototype:setVisible(visible)
     if visible then
         self._handle:mapWindow(self._windowId);

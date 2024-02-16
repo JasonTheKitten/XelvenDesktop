@@ -1,4 +1,5 @@
 local windib = require("windib");
+local graphix = require("graphix");
 
 local term = require("term");
 local shell = require("shell");
@@ -22,12 +23,23 @@ else
     initialColumns, initialRows = 80, 25;
 end
 
-local cellWidth, cellHeight = 20, 20;
+local cellWidth, cellHeight = 10, 20;
 
+local initialSize = { initialColumns * cellWidth + 2, initialRows * cellHeight + 2 };
 local window = handle:openWindow({
-    size = { initialColumns * cellWidth, initialRows * cellHeight },
+    size = initialSize,
 });
 window:setVisible(true);
+local graphixContext = window:createGraphics(graphix.createX);
+
+do
+    graphixContext:startFrame();
+    local paint = graphixContext:createPaint({
+        foreground = 0xFFFF00
+    });
+    graphixContext:fillRect(paint, 0, 0, initialSize[1], initialSize[2]);
+    graphixContext:endFrame();
+end
 
 os.sleep(5);
 local oldGPU = term.gpu();
@@ -63,6 +75,21 @@ local function createGPU(columns, rows)
             char = " ", fg = 0xFFFFFF, bg = 0x000000
         };
     end
+
+    local function marshallColor(color)
+        if color < 0 then
+            return -color, true;
+        else
+            return color, false;
+        end
+    end
+    local function decodeColor(color)
+        if color < 0 then
+            return palette[-color - 1], -color;
+        else
+            return color;
+        end
+    end
     
     local function setCell(x, y, char, fg, bg)
         if x < 1 or y < 1 or x > columns or y > rows then
@@ -74,6 +101,18 @@ local function createGPU(columns, rows)
         buffer[y][x] = {
             char = char, fg = fg, bg = bg
         };
+
+        local cx, cy = (x - 1) * cellWidth, (y - 1) * cellHeight;
+        local paint = graphixContext:createPaint({
+            foreground = bg
+        });
+        graphixContext:fillRect(paint, cx + 1, cy + 1, cellWidth, cellHeight);
+
+        if char == " " then return; end
+        paint = graphixContext:createPaint({
+            foreground = fg
+        });
+        graphixContext:fillRect(paint, cx + 4, cy + 4, cellWidth - 6, cellHeight - 6);
     end
 
     local newGPU = {}
@@ -81,31 +120,37 @@ local function createGPU(columns, rows)
         return oldGPU.getScreen();
     end
     function newGPU.getBackground()
-        local isPaletteIndex = background < 0;
-        return isPaletteIndex and (-background - 1) or background;
+        return marshallColor(background);
     end
     function newGPU.setBackground(color, isPaletteIndex)
+        oldGPU.setBackground(color, isPaletteIndex);
+        local oldBackground = background;
         if isPaletteIndex then
             background = -color - 1;
         else
             background = color;
         end
+        return decodeColor(oldBackground);
     end
     function newGPU.getForeground()
-        local isPaletteIndex = foreground < 0;
-        return isPaletteIndex and (-foreground - 1) or foreground;
+        return marshallColor(foreground);
     end
     function newGPU.setForeground(color, isPaletteIndex)
+        oldGPU.setForeground(color, isPaletteIndex);
+        local oldForeground = foreground;
         if isPaletteIndex then
             foreground = -color - 1;
         else
             foreground = color;
         end
+
+        return decodeColor(oldForeground);
     end
     function newGPU.getPaletteColor(index)
         return palette[index + 1];
     end
     function newGPU.setPaletteColor(index, color)
+        oldGPU.setPaletteColor(index, color);
         if index > 15 or index < 0 then
             return nil, "palette index out of range";
         end
@@ -123,6 +168,7 @@ local function createGPU(columns, rows)
         return depth;
     end
     function newGPU.setDepth(newDepth)
+        oldGPU.setDepth(newDepth);
         if newDepth ~= 1 and newDepth ~= 4 and newDepth ~= 8 then
             return nil, "unsupported depth";
         end
@@ -165,6 +211,8 @@ local function createGPU(columns, rows)
         return cell.char, fg, bg, fgPaletteIndex, bgPaletteIndex;
     end
     function newGPU.set(x, y, value, vertical)
+        oldGPU.set(x, y, value, vertical);
+        graphixContext:startFrame();
         for i = 1, #value do
             local char = value:sub(i, i);
             setCell(x, y, char, foreground, background);
@@ -174,8 +222,11 @@ local function createGPU(columns, rows)
                 x = x + 1;
             end
         end
+        graphixContext:endFrame();
     end
     function newGPU.copy(x, y, width, height, tx, ty)
+        oldGPU.copy(x, y, width, height, tx, ty);
+        graphixContext:startFrame();
         local newBuffer = {};
         for i = 1, height do
             newBuffer[i] = {};
@@ -191,13 +242,17 @@ local function createGPU(columns, rows)
                 setCell(tx + j - 1, ty + i - 1, newBuffer[i][j].char, newBuffer[i][j].fg, newBuffer[i][j].bg);
             end
         end
+        graphixContext:endFrame();
     end
     function newGPU.fill(x, y, width, height, char)
+        oldGPU.fill(x, y, width, height, char);
+        graphixContext:startFrame();
         for i = 1, height do
             for j = 1, width do
                 setCell(x + j - 1, y + i - 1, char, foreground, background);
             end
         end
+        graphixContext:endFrame();
     end
 
     return newGPU;
@@ -206,3 +261,4 @@ end
 term.bind(createGPU(initialColumns, initialRows));
 shell.execute("/bin/sh.lua");
 term.bind(oldGPU);
+window:close();

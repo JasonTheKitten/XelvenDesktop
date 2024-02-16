@@ -65,6 +65,14 @@ function handlePrototype:mapWindow(windowId)
   self:_flush();
 end
 
+function handlePrototype:destroyWindow(windowId)
+  self:_sendCard8(4);
+  self:_sendNone();
+  self:_sendCard16(2);
+  self:_sendCard32(windowId);
+  self:_flush();
+end
+
 function handlePrototype:unmapWindow(windowId)
   self:_sendCard8(10);
   self:_sendCard8(1);
